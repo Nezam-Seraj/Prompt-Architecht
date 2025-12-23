@@ -1,0 +1,322 @@
+
+import React, { useState, useRef, useEffect } from 'react';
+import { PromptCategory, PromptArchitectResponse, MediaData } from './types';
+import { architectPrompt } from './services/geminiService';
+import { Button } from './components/Button';
+
+const App: React.FC = () => {
+  const [activeCategory, setActiveCategory] = useState<PromptCategory>(PromptCategory.IMAGE);
+  const [userInput, setUserInput] = useState('');
+  const [media, setMedia] = useState<MediaData | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [result, setResult] = useState<PromptArchitectResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Global Paste Event Listener
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.indexOf('image') !== -1 || item.type.indexOf('video') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64String = (reader.result as string).split(',')[1];
+              setMedia({
+                base64: base64String,
+                mimeType: file.type,
+                fileName: 'Pasted Content Stream',
+                type: file.type.startsWith('video') ? 'video' : 'image'
+              });
+              setActiveCategory(PromptCategory.MEDIA_ANALYSIS);
+              setError(null);
+              const textarea = document.querySelector('textarea');
+              textarea?.focus();
+            };
+            reader.readAsDataURL(file);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, []);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = (reader.result as string).split(',')[1];
+      setMedia({
+        base64: base64String,
+        mimeType: file.type,
+        fileName: file.name,
+        type: file.type.startsWith('video') ? 'video' : 'image'
+      });
+      setActiveCategory(PromptCategory.MEDIA_ANALYSIS);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleArchitect = async () => {
+    if (!userInput.trim() && !media) {
+      setError("Provide a neural idea or paste/upload a data file.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const response = await architectPrompt(activeCategory, userInput, media || undefined);
+      setResult(response);
+    } catch (err: any) {
+      setError(err.message || "Construction failed. Structural integrity compromised.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const reset = () => {
+    setMedia(null);
+    setResult(null);
+    setUserInput('');
+    setActiveCategory(PromptCategory.IMAGE);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  return (
+    <div className="min-h-screen bg-[#000000] text-slate-100 selection:bg-[#1DCD9F] selection:text-[#000000]">
+      {/* Header */}
+      <header className="border-b-4 border-[#1DCD9F] bg-[#000000] sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-[#1DCD9F] text-[#000000] rounded-sm flex items-center justify-center font-bold text-2xl transform hover:rotate-6 transition-transform shadow-lg shadow-[#1DCD9F]/20">A</div>
+            <div>
+              <h1 className="text-2xl font-black tracking-tighter uppercase leading-none text-[#1DCD9F]">
+                Prompt Architect
+              </h1>
+              <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#169976]">Cybernetic Deconstruction Unit</p>
+            </div>
+          </div>
+          <div className="hidden md:flex flex-col items-end">
+            <span className="text-[10px] font-mono text-[#169976] uppercase tracking-widest font-bold">Terminal ID: GEM-3-PR0</span>
+            <span className="text-[10px] text-[#1DCD9F] font-bold animate-pulse">SYSTEMS NOMINAL</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-8 md:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          {/* Controls Column */}
+          <div className="lg:col-span-5 space-y-8">
+            <section className="bg-[#222222] border-2 border-[#1DCD9F] rounded-lg p-6 shadow-[8px_8px_0px_0px_rgba(22,153,118,1)]">
+              <h2 className="text-xl font-black mb-6 flex items-center gap-2 uppercase italic text-[#1DCD9F]">
+                <span className="w-3 h-3 bg-[#1DCD9F] rounded-full animate-ping"></span>
+                Input Terminal
+              </h2>
+
+              {/* Mode Toggle */}
+              {!media && (
+                <div className="grid grid-cols-3 gap-2 mb-8 bg-[#000000] p-1.5 rounded-lg border border-[#169976]/30">
+                  {Object.values(PromptCategory).filter(c => c !== PromptCategory.MEDIA_ANALYSIS).map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setActiveCategory(cat)}
+                      className={`py-2.5 px-3 rounded-md text-[10px] font-black transition-all uppercase tracking-tighter ${
+                        activeCategory === cat 
+                        ? 'bg-[#1DCD9F] text-[#000000] shadow-md' 
+                        : 'text-[#169976] hover:bg-[#222222] hover:text-[#1DCD9F]'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* File Upload / Paste Section */}
+              <div className="mb-8">
+                <label className="block text-xs font-black text-[#169976] uppercase mb-2 tracking-widest">Neural Reference</label>
+                {media ? (
+                  <div className="relative group rounded-lg overflow-hidden border-2 border-[#1DCD9F]">
+                    {media.type === 'image' ? (
+                      <img 
+                        src={`data:${media.mimeType};base64,${media.base64}`} 
+                        alt="Preview" 
+                        className="w-full aspect-video object-cover brightness-90 group-hover:brightness-100 transition-all"
+                      />
+                    ) : (
+                      <div className="w-full aspect-video bg-[#000000] flex items-center justify-center">
+                        <svg className="w-12 h-12 text-[#1DCD9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                    <button 
+                      onClick={reset}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded hover:bg-red-500 transition-colors shadow-lg"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-[#1DCD9F] text-[#000000] p-2 text-[10px] uppercase font-black truncate">
+                      {media.fileName}
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-4 border-dotted border-[#169976]/50 hover:border-[#1DCD9F] rounded-lg p-10 flex flex-col items-center justify-center gap-4 cursor-pointer group transition-all bg-[#000000] hover:bg-[#222222]"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-[#222222] border-2 border-[#169976] flex items-center justify-center group-hover:border-[#1DCD9F] group-hover:scale-110 transition-all shadow-lg shadow-[#1DCD9F]/5">
+                      <svg className="w-8 h-8 text-[#1DCD9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-black uppercase text-[#1DCD9F]">Ingest Data</p>
+                      <p className="text-[10px] text-[#169976] mt-1 font-bold uppercase">CTRL+V to auto-deconstruct</p>
+                    </div>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleFileUpload} 
+                      className="hidden" 
+                      accept="image/*,video/*"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Text Input Section */}
+              <div className="mb-8">
+                <label className="block text-xs font-black text-[#169976] uppercase mb-2 tracking-widest">Semantic Context</label>
+                <textarea
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder={media ? "Refine the deconstruction logic..." : "Input raw vision descriptors..."}
+                  className="w-full h-32 bg-[#000000] border-2 border-[#1DCD9F] rounded-lg p-4 text-sm text-white focus:ring-4 focus:ring-[#1DCD9F]/10 outline-none transition-all resize-none font-medium placeholder-[#169976]/50 shadow-inner"
+                />
+              </div>
+
+              {error && (
+                <div className="mb-6 p-4 bg-red-900/20 border-2 border-red-700 rounded-lg text-red-500 text-xs font-bold flex items-start gap-3 uppercase">
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {error}
+                </div>
+              )}
+
+              <Button 
+                onClick={handleArchitect} 
+                isLoading={isGenerating} 
+                className="w-full h-14"
+                variant="primary"
+              >
+                {media ? 'Execute Deconstruction' : `Synthesize ${activeCategory} Logic`}
+              </Button>
+            </section>
+          </div>
+
+          {/* Results Column */}
+          <div className="lg:col-span-7">
+            {isGenerating ? (
+              <div className="h-full flex flex-col items-center justify-center p-12 bg-[#222222] border-4 border-[#1DCD9F] border-dotted rounded-lg">
+                <div className="relative w-28 h-28 mb-8">
+                  <div className="absolute inset-0 border-8 border-[#169976]/10 rounded-full"></div>
+                  <div className="absolute inset-0 border-8 border-[#1DCD9F] rounded-full border-t-transparent animate-spin"></div>
+                  <div className="absolute inset-4 border-2 border-[#169976] rounded-full animate-ping opacity-25"></div>
+                </div>
+                <h3 className="text-2xl font-black text-[#1DCD9F] mb-2 uppercase italic">Deconstructing...</h3>
+                <p className="text-[#169976] text-center max-w-sm font-bold text-xs uppercase tracking-[0.2em]">
+                  Mapping spatial composition and lighting vectors.
+                </p>
+              </div>
+            ) : result ? (
+              <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
+                {/* Analysis Card */}
+                <div className="bg-[#222222] border-2 border-[#169976] rounded-lg overflow-hidden shadow-[8px_8px_0px_0px_rgba(29,205,159,0.3)]">
+                  <div className="bg-[#169976] px-6 py-4 border-b-2 border-[#000000] flex items-center justify-between">
+                    <h3 className="font-black text-xs uppercase tracking-widest text-[#000000]">Logic Breakdown</h3>
+                    <div className="w-3 h-3 bg-[#000000] rounded-full shadow-[0_0_8px_#1DCD9F]"></div>
+                  </div>
+                  <div className="p-8">
+                    <p className="text-white leading-relaxed font-medium italic text-lg border-l-4 border-[#1DCD9F] pl-6">
+                      "{result.analysis}"
+                    </p>
+                  </div>
+                </div>
+
+                {/* Prompt Card */}
+                <div className="bg-[#000000] border-2 border-[#1DCD9F] rounded-lg overflow-hidden shadow-[8px_8px_0px_0px_rgba(29,205,159,1)]">
+                  <div className="bg-[#1DCD9F] px-6 py-4 border-b-2 border-[#000000] flex items-center justify-between">
+                    <h3 className="font-black text-xs uppercase tracking-widest text-[#000000]">Construct Output</h3>
+                    <button 
+                      onClick={() => navigator.clipboard.writeText(result.optimizedPrompt)}
+                      className="text-[10px] bg-[#000000] text-[#1DCD9F] px-3 py-1.5 rounded font-black uppercase hover:bg-[#222222] transition-colors border border-[#000000]"
+                    >
+                      Copy Logic
+                    </button>
+                  </div>
+                  <div className="p-8 bg-[#222222]/50 font-mono text-base leading-loose">
+                    <div className="whitespace-pre-wrap text-[#1DCD9F] font-bold">
+                      {result.optimizedPrompt}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pro Tip Card */}
+                <div className="bg-[#169976] border-2 border-[#1DCD9F] rounded-lg p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden group">
+                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#1DCD9F]/20 rounded-full group-hover:scale-125 transition-transform duration-700"></div>
+                  <h3 className="text-[#000000] font-black mb-3 flex items-center gap-2 uppercase italic tracking-tighter">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Neural Optimization Tip
+                  </h3>
+                  <p className="text-white text-sm font-bold uppercase leading-relaxed relative z-10">
+                    {result.proTip}
+                  </p>
+                </div>
+
+                <div className="flex justify-center pt-4">
+                  <Button variant="outline" onClick={reset} className="border-4 border-[#1DCD9F]">
+                    Reset Buffer
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center p-12 bg-[#222222]/30 border-4 border-[#169976] border-dotted rounded-lg text-[#169976]">
+                <svg className="w-20 h-20 mb-6 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2 1m0 0L10 4m2 1v2.5M4 7l2-1M4 7l2 1M4 7v2.5M10 21l2-1m0 0l2 1m-2-1v-2.5M6 18l-2-1m2 1l2-1m-2 1v-2.5M18 18l2-1m-2 1l-2-1m2 1v-2.5" />
+                </svg>
+                <p className="text-center font-black uppercase tracking-widest text-lg text-[#1DCD9F]">Buffer Empty</p>
+                <p className="text-[10px] mt-2 font-bold uppercase opacity-50">Terminal awaiting sequence ingestion</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Footer Info */}
+      <footer className="mt-auto py-10 text-center border-t-4 border-[#1DCD9F] bg-[#000000] text-[#169976] text-[10px] font-black uppercase tracking-[0.4em]">
+        <p>© 2024 Multi-Modal Prompt Architect // System.V4.0.0</p>
+      </footer>
+    </div>
+  );
+};
+
+export default App;

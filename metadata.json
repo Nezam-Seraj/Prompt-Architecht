@@ -1,0 +1,8 @@
+{
+  "name": "Multi-Modal Prompt Architect",
+  "description": "A sophisticated AI-powered tool that transforms raw ideas into high-performance prompts and reverse-engineers media into master templates.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
