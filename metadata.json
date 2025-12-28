@@ -1,6 +1,11 @@
 {
-  "name": "Multi-Modal Prompt Architect",
-  "description": "A sophisticated AI-powered tool that transforms raw ideas into high-performance prompts and reverse-engineers media into master templates.",
+  "name": "Prompt Architect",
+  "short_name": "Architect",
+  "description": "Transform raw ideas into high-performance neural blueprints and reverse-engineer media into master templates.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#1DCD9F",
   "requestFramePermissions": [
     "camera",
     "microphone"
