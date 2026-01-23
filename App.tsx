@@ -17,7 +17,7 @@ const App: React.FC = () => {
   const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'active' | 'missing'>('checking');
 
   useEffect(() => {
-    // Check for API key on mount and set status
+    // Initial key check
     const key = getApiKey();
     setApiKeyStatus(key ? 'active' : 'missing');
   }, []);
@@ -78,21 +78,23 @@ const App: React.FC = () => {
   };
 
   const handleArchitect = async () => {
-    if (apiKeyStatus === 'missing') {
-      setError("CRITICAL: API_KEY not detected in production environment.");
-      return;
-    }
     if (!userInput.trim() && !media) {
-      setError("Provide a neural idea or paste/upload a data file.");
+      setError("Input Buffer Empty: Provide context or data.");
       return;
     }
+    
     setIsGenerating(true);
     setError(null);
+    
     try {
       const response = await architectPrompt(activeCategory, userInput, media || undefined);
       setResult(response);
+      setApiKeyStatus('active');
     } catch (err: any) {
-      setError(err.message || "Construction failed.");
+      setError(err.message);
+      if (err.message.includes("API_KEY") || err.message.includes("missing")) {
+        setApiKeyStatus('missing');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -109,36 +111,8 @@ const App: React.FC = () => {
     setUserInput('');
     setActiveCategory(PromptCategory.IMAGE);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    setError(null);
   };
-
-  if (apiKeyStatus === 'missing') {
-    return (
-      <div className="min-h-screen bg-[#000000] flex items-center justify-center p-6 text-[#1DCD9F] font-mono">
-        <div className="max-w-2xl w-full border-4 border-[#1DCD9F] p-10 rounded-lg bg-[#111] shadow-[0_0_50px_rgba(29,205,159,0.2)]">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-red-600 text-white rounded-sm flex items-center justify-center font-bold text-2xl animate-pulse">!</div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter">Integration Required</h1>
-          </div>
-          <p className="text-sm leading-loose mb-8 opacity-80 uppercase tracking-wide">
-            The architect is offline. You must add your Google AI API Key to Vercel to activate the neural core.
-          </p>
-          <div className="space-y-6">
-            <section className="bg-black/50 p-4 rounded border border-[#1DCD9F]/20">
-              <h2 className="text-xs font-black uppercase tracking-widest text-white mb-4">Launch Instructions:</h2>
-              <ol className="list-decimal list-inside space-y-3 text-[11px] opacity-70">
-                <li>Open your Project on <a href="https://vercel.com" className="underline text-[#1DCD9F]">Vercel.com</a></li>
-                <li>Go to <span className="text-white">Settings</span> &gt; <span className="text-white">Environment Variables</span></li>
-                <li>Key: <span className="text-[#1DCD9F] font-bold">API_KEY</span></li>
-                <li>Value: <span className="text-[#1DCD9F] font-bold">[Your Key from AI Studio]</span></li>
-                <li>Go to <span className="text-white">Deployments</span> and select <span className="text-white">Redeploy</span></li>
-              </ol>
-            </section>
-            <Button onClick={() => window.location.reload()} className="w-full">Re-Check Connection</Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#000000] text-slate-100 selection:bg-[#1DCD9F] selection:text-[#000000]">
@@ -159,7 +133,7 @@ const App: React.FC = () => {
           </div>
           <div className="hidden md:flex flex-col items-end">
             <span className="text-[10px] font-mono text-[#169976] uppercase tracking-widest font-bold">Terminal ID: GEM-3-PR0</span>
-            <span className="text-[10px] text-[#1DCD9F] font-bold animate-pulse">SYSTEMS NOMINAL</span>
+            <span className="text-[10px] text-[#1DCD9F] font-bold animate-pulse">SYSTEMS ONLINE</span>
           </div>
         </div>
       </header>
@@ -167,7 +141,7 @@ const App: React.FC = () => {
       <main className="flex-grow max-w-6xl mx-auto px-4 py-8 md:py-12 w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-5 space-y-8">
-            <section className="bg-[#222222] border-2 border-[#1DCD9F] rounded-lg p-6 shadow-[8px_8px_0px_0px_rgba(22,153,118,1)]">
+            <section className="bg-[#111111] border-2 border-[#1DCD9F] rounded-lg p-6 shadow-[8px_8px_0px_0px_rgba(22,153,118,1)]">
               <h2 className="text-xl font-black mb-6 flex items-center gap-2 uppercase italic text-[#1DCD9F]">
                 <span className="w-3 h-3 bg-[#1DCD9F] rounded-full animate-ping"></span>
                 Input Terminal
@@ -217,7 +191,15 @@ const App: React.FC = () => {
                 <textarea value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder={media ? "Refine deconstruction..." : "Raw vision descriptors..."} className="w-full h-32 bg-[#000000] border-2 border-[#1DCD9F] rounded-lg p-4 text-sm text-white focus:ring-4 focus:ring-[#1DCD9F]/10 outline-none transition-all resize-none font-medium placeholder-[#169976]/50 shadow-inner" />
               </div>
 
-              {error && <div className="mb-6 p-4 bg-red-900/20 border-2 border-red-700 rounded-lg text-red-500 text-[11px] font-black uppercase tracking-tight">{error}</div>}
+              {error && (
+                <div className="mb-6 p-4 bg-red-900/20 border-2 border-red-700 rounded-lg text-red-500 text-[11px] font-black uppercase tracking-tight leading-relaxed">
+                  <div className="flex items-center gap-2 mb-2 underline decoration-red-700 font-black">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
+                    <span>PROCESS INTERRUPTED</span>
+                  </div>
+                  {error}
+                </div>
+              )}
 
               <Button onClick={handleArchitect} isLoading={isGenerating} className="w-full h-14" variant="primary">
                 {media ? 'Execute Deconstruction' : `Synthesize Logic`}
@@ -227,7 +209,7 @@ const App: React.FC = () => {
 
           <div className="lg:col-span-7">
             {isGenerating ? (
-              <div className="h-full flex flex-col items-center justify-center p-12 bg-[#222222] border-4 border-[#1DCD9F] border-dotted rounded-lg">
+              <div className="h-full flex flex-col items-center justify-center p-12 bg-[#111111] border-4 border-[#1DCD9F] border-dotted rounded-lg">
                 <div className="relative w-28 h-28 mb-8">
                   <div className="absolute inset-0 border-8 border-[#169976]/10 rounded-full"></div>
                   <div className="absolute inset-0 border-8 border-[#1DCD9F] rounded-full border-t-transparent animate-spin"></div>
@@ -236,7 +218,7 @@ const App: React.FC = () => {
               </div>
             ) : result ? (
               <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
-                <div className="bg-[#222222] border-2 border-[#169976] rounded-lg overflow-hidden shadow-[8px_8px_0px_0px_rgba(29,205,159,0.3)]">
+                <div className="bg-[#111111] border-2 border-[#169976] rounded-lg overflow-hidden shadow-[8px_8px_0px_0px_rgba(29,205,159,0.3)]">
                   <div className="bg-[#169976] px-6 py-4 border-b-2 border-[#000000] flex items-center justify-between"><h3 className="font-black text-xs uppercase tracking-widest text-[#000000]">Logic Breakdown</h3></div>
                   <div className="p-8"><p className="text-white leading-relaxed font-medium italic text-lg border-l-4 border-[#1DCD9F] pl-6">"{result.analysis}"</p></div>
                 </div>
@@ -248,7 +230,7 @@ const App: React.FC = () => {
                       <button onClick={() => handleCopy(`/imagine prompt: ${result.optimizedPrompt} --v 6.1 --stylize 250`, 'MIDJOURNEY')} className="text-[10px] bg-[#222222] text-[#1DCD9F] px-3 py-1.5 rounded font-black uppercase border border-[#1DCD9F]/30 hover:bg-[#333]">Midjourney Format</button>
                     </div>
                   </div>
-                  <div className="p-8 bg-[#222222]/50 font-mono text-base leading-loose"><div className="whitespace-pre-wrap text-[#1DCD9F] font-bold">{result.optimizedPrompt}</div></div>
+                  <div className="p-8 bg-[#111111]/50 font-mono text-base leading-loose"><div className="whitespace-pre-wrap text-[#1DCD9F] font-bold">{result.optimizedPrompt}</div></div>
                 </div>
                 <div className="bg-[#169976] border-2 border-[#1DCD9F] rounded-lg p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden group">
                   <h3 className="text-[#000000] font-black mb-3 flex items-center gap-2 uppercase italic">Neural Optimization Tip</h3>
@@ -257,9 +239,9 @@ const App: React.FC = () => {
                 <div className="flex justify-center pt-4"><Button variant="outline" onClick={reset} className="border-4 border-[#1DCD9F]">Reset Buffer</Button></div>
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center p-12 bg-[#222222]/30 border-4 border-[#169976] border-dotted rounded-lg text-[#169976]">
-                <p className="text-center font-black uppercase tracking-widest text-lg text-[#1DCD9F]">Buffer Empty</p>
-                <p className="text-[10px] mt-2 font-bold uppercase opacity-50 text-center max-w-xs">Terminal awaiting sequence ingestion. Paste or upload data to begin deconstruction.</p>
+              <div className="h-full flex flex-col items-center justify-center p-12 bg-[#111111]/30 border-4 border-[#169976] border-dotted rounded-lg text-[#169976]">
+                <p className="text-center font-black uppercase tracking-widest text-lg text-[#1DCD9F]">Terminal Idle</p>
+                <p className="text-[10px] mt-2 font-bold uppercase opacity-50 text-center max-w-xs">Awaiting neural ingestion. Provide content to begin deconstruction.</p>
               </div>
             )}
           </div>
@@ -268,13 +250,13 @@ const App: React.FC = () => {
 
       <footer className="mt-auto border-t-4 border-[#1DCD9F] bg-[#000000]">
         <div className="max-w-6xl mx-auto px-4 h-12 flex items-center justify-between">
-          <p className="text-[#169976] text-[8px] font-black uppercase tracking-[0.4em]">© 2024 Multi-Modal Prompt Architect // V4.1.0</p>
+          <p className="text-[#169976] text-[8px] font-black uppercase tracking-[0.4em]">© 2024 Multi-Modal Prompt Architect // VER 4.3.1</p>
           <div className="flex items-center gap-3">
-             <span className="text-[8px] font-black text-[#169976] uppercase tracking-widest">System Health:</span>
+             <span className="text-[8px] font-black text-[#169976] uppercase tracking-widest">Environment:</span>
              <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${apiKeyStatus === 'active' ? 'bg-[#1DCD9F] shadow-[0_0_5px_#1DCD9F]' : 'bg-red-600'}`}></div>
-                <span className={`text-[8px] font-black uppercase ${apiKeyStatus === 'active' ? 'text-[#1DCD9F]' : 'text-red-600'}`}>
-                  API {apiKeyStatus === 'active' ? 'CONNECTED' : 'OFFLINE'}
+                <div className={`w-1.5 h-1.5 rounded-full ${apiKeyStatus === 'active' ? 'bg-[#1DCD9F] shadow-[0_0_5px_#1DCD9F]' : apiKeyStatus === 'checking' ? 'bg-yellow-500' : 'bg-red-600'}`}></div>
+                <span className={`text-[8px] font-black uppercase ${apiKeyStatus === 'active' ? 'text-[#1DCD9F]' : apiKeyStatus === 'checking' ? 'text-yellow-500' : 'text-red-600'}`}>
+                  {apiKeyStatus === 'active' ? 'Neural Core Active' : apiKeyStatus === 'checking' ? 'Scanning...' : 'API Key Missing'}
                 </span>
              </div>
           </div>

@@ -2,10 +2,15 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { PromptCategory, PromptArchitectResponse, MediaData } from "../types";
 
-// Helper to safely get the API key without crashing if 'process' is undefined
+// The API key must be obtained exclusively from process.env.API_KEY
 export const getApiKey = () => {
   try {
-    return (typeof process !== 'undefined' && process.env?.API_KEY) || null;
+    // Safer check for browser environments where process might not be defined
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY || null;
+    }
+    // Check globalThis as a fallback for some edge environments
+    return (globalThis as any).process?.env?.API_KEY || null;
   } catch (e) {
     return null;
   }
@@ -29,8 +34,9 @@ export async function architectPrompt(
   media?: MediaData
 ): Promise<PromptArchitectResponse> {
   const apiKey = getApiKey();
+  
   if (!apiKey) {
-    throw new Error("API_KEY_MISSING: Environment variables not synchronized.");
+    throw new Error("ENVIRONMENT_SYNC_ERROR: The API_KEY variable is missing. ACTION: Add 'API_KEY' to Vercel Environment Variables and REDEPLOY.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -76,6 +82,6 @@ export async function architectPrompt(
   try {
     return JSON.parse(text) as PromptArchitectResponse;
   } catch (e) {
-    throw new Error("Neural decoding failed.");
+    throw new Error("Neural decoding failed. The AI returned an invalid response format.");
   }
 }
